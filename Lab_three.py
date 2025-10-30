@@ -19,7 +19,7 @@ class Cashier:
         self.busy = False
         self.served_count = 0
         # Фиксированное время для каждой кассы
-        service_times = [3, 4, 2, 5]  # касса0=3мин, касса1=4мин, касса2=2мин, касса3=5мин
+        service_times = [3, 4, 5, 6]  # касса0=3мин, касса1=4мин, касса2=5мин, касса3=6мин
         self.service_time = service_times[id]
 
     def __repr__(self):
@@ -35,7 +35,6 @@ class EnhancedQueueSimulation(threading.Thread):
             'num_runs': num_runs  # количество прогонов
         }
         self.stop_event = threading.Event()
-        # self.lock = threading.Lock() не используется нигде
         self.run_results = []
         self.current_run = 0
         self.progress = 0
@@ -53,13 +52,15 @@ class EnhancedQueueSimulation(threading.Thread):
         return self.expovariate(self.params['arrival_rate'])
 
     def customer(self, env, cashiers, customer_id):
-        free_cashiers = [c for c in cashiers if not c.busy]
+        # Пытаемся найти свободную кассу в порядке от 0 до 3
+        free_cashier = None
+        for cashier in cashiers:
+            if not cashier.busy:
+                free_cashier = cashier
+                break
 
-        if free_cashiers:
-            free_cashier = random.choice(free_cashiers)
+        if free_cashier:
             free_cashier.busy = True
-
-            print(f"Клиент {customer_id} -> {free_cashier}")
 
             # Используем фиксированное время кассы
             service_time = free_cashier.service_time
@@ -68,9 +69,12 @@ class EnhancedQueueSimulation(threading.Thread):
             free_cashier.busy = False
             free_cashier.served_count += 1
             self.served_customers += 1
+
+            print(f"Клиент {customer_id} обслужен на {free_cashier}")
         else:
-            print(f"Клиент {customer_id} ушел")
             self.abandoned += 1
+
+            print(f"Клиент {customer_id} ушел - все кассы заняты")
 
     def setup(self, env, cashiers):
         customer_id = 0
@@ -79,7 +83,6 @@ class EnhancedQueueSimulation(threading.Thread):
             customer_id += 1
             env.process(self.customer(env, cashiers, customer_id))
 
-
     def run_single_simulation(self):
         env = simpy.Environment()
         # Создаем 4 кассы с фиксированным временем
@@ -87,7 +90,7 @@ class EnhancedQueueSimulation(threading.Thread):
         self.served_customers = 0
         self.abandoned = 0
         env.process(self.setup(env, cashiers))
-        env.run(until=self.params['sim_time'])
+        env.run(until=self.params['sim_time']) #мэджик
 
         total_customers = self.served_customers + self.abandoned
         refusal_rate = (self.abandoned / total_customers * 100) if total_customers else 0
@@ -95,7 +98,7 @@ class EnhancedQueueSimulation(threading.Thread):
         # статистика по кассам
         self.cashier_stats = []
         for cashier in cashiers:
-            self.cashier_stats.append ({
+            self.cashier_stats.append({
                 'id': cashier.id,
                 'served_count': cashier.served_count,
                 'service_time': cashier.service_time,
@@ -156,7 +159,6 @@ class EnhancedQueueSimulation(threading.Thread):
             'avg_cashier_stats': cashier_stats_all
         }
 
-
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -192,7 +194,7 @@ class MainWindow(QMainWindow):
         # Параметр
         params_box = QGroupBox("Параметры")
         params_layout = QVBoxLayout()
-        self._add_double_spin(params_layout, "Клиентов в минуту:", 0.01, 20.0, 0.5, 'arrival_rate')
+        self._add_double_spin(params_layout, "Клиентов в минуту:", 0.001, 20.0, 0.5, 'arrival_rate')
         self._add_spin(params_layout, "Количество прогонов:", 1, 10000, 100, 'num_runs')
         params_box.setLayout(params_layout)
         panel.addWidget(params_box)
